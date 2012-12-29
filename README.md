@@ -9,3 +9,5 @@ Examples:
     42
     1
     Right (Right -12)
+
+Strict, impure, curried and partially applied.
