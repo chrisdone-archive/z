@@ -82,7 +82,7 @@ block = fmap Block (go []) where
             bind name f $ go (acc ++ [decl])
           Defmacro name fun -> do
             f <- lift (eval fun)
-            bind ("_" ++ name) f (go acc)
+            bind name f (go acc)
           x -> go (acc ++ [x])
 
 may x = fmap Just (try x) <|> pure Nothing
@@ -106,7 +106,7 @@ defmacro = offside many1 (string "defmacro") id $ \_ parts ->
     [ps,body] -> do
       params <- flatten ps
       case params of
-        (name:params@(_:_)) -> return (Defmacro name (makeLambda params body))
+        (ValueSym name:params@(_:_)) -> return (Defmacro (MacroSym name) (makeLambda params body))
         _ -> unexpected "malformed defun name/parameters"
     _ -> unexpected "malformed defun"
 
@@ -120,8 +120,7 @@ expr =
   try app <|> try lit <|> var
 
 macro = do
-  Var name' <- lookAhead var
-  let name = "_" ++ name'
+  Var name <- lookAhead macroVar
   result <- lift (resolveMaybe name)
   case result of
     Nothing -> unexpected "not a macro, don't bother"
@@ -159,7 +158,9 @@ lit :: Parse Exp
 lit = fmap Value (str <|> integer <|> bool)
 
 var :: Parse Exp
-var = fmap Var varname
+var = fmap (Var . ValueSym) varname
+
+macroVar = fmap (Var . MacroSym) varname
 
 varname :: Parse String
 varname = (++) <$> many1 sym <*> many (sym <|> digit)
@@ -169,7 +170,7 @@ str = fmap (\x -> String (read ("\"" ++ x ++ "\""))) (char '"' *> manyTill anyCh
 integer = fmap (Integer . read) (many1 digit)
 bool = fmap (Bool . (=="true")) (string "true" <|> string "false")
 
-app = offside many var (\(Var name) -> name) $ \op args ->
+app = offside many var (\(Var name) -> symToString name) $ \op args ->
   return (foldl App op args)
 
 fun :: Parse Exp
@@ -183,6 +184,7 @@ fun = offside many1 (string "fn") id $ \_ parts ->
         args -> return (foldl App lambda args)
     _ -> unexpected "malformed fn"
 
+makeLambda :: [Sym] -> Exp -> Exp
 makeLambda params body =
   foldl (\body name -> Value (Fun emptyEnv name body))
         body
@@ -200,7 +202,7 @@ doe = offside many (string "do") id $ \_ stmts ->
     [stmt] -> return stmt
     stmts  -> return (foldr1 Seq stmts)
 
-flatten :: Exp -> Parse [Var]
+flatten :: Exp -> Parse [Sym]
 flatten = go where
   go (App x y) = (++) <$> go x <*> go y
   go (Var x) = return [x]
@@ -220,13 +222,16 @@ offside numbered p getName cont = do
   args <- numbered (try (do newline; string (replicate side ' '); expr))
   cont op (arg:args)
 
+symToString (MacroSym s) = s
+symToString (ValueSym s) = s
+
 --------------------------------------------------------------------------------
 -- Evaluator
 
 runEval :: Env -> Z a -> IO (Either RuntimeError a)
 runEval env z = runReaderT (runErrorT (runZ z)) env
 
-emptyEnv :: Map Var Value
+emptyEnv :: Map Sym Value
 emptyEnv = M.empty
 
 evalBlock (Block decls) = go decls where
@@ -275,18 +280,18 @@ apply ope arge = do
               (eval body)
     _ -> throwError (NotAFunction ope arge)
 
-resolve :: Var -> Z Value
+resolve :: Sym -> Z Value
 resolve key =
   resolveMaybe key
     >>= maybe (throwError (NotInScope key))
               return
 
-resolveMaybe :: Var -> Z (Maybe Value)
+resolveMaybe :: Sym -> Z (Maybe Value)
 resolveMaybe key = do
   env <- ask
   return (M.lookup key env)
 
-bind :: MonadReader Env m => Var -> Value -> m a -> m a
+bind :: MonadReader Env m => Sym -> Value -> m a -> m a
 bind name value m = local (M.insert name value) m
 
 --------------------------------------------------------------------------------
@@ -294,7 +299,7 @@ bind name value m = local (M.insert name value) m
 
 bindBuiltins :: Z a -> Z a
 bindBuiltins m = go builtins where
-  go ((name,var):bs) = bind name var (go bs)
+  go ((name,var):bs) = bind (ValueSym name) var (go bs)
   go [] = m
 
 builtins = [("__if",if')
@@ -372,7 +377,7 @@ newtype Z a = Z { runZ :: ErrorT RuntimeError (ReaderT Env IO) a }
            ,Applicative)
 
 data RuntimeError
-  = NotInScope Name
+  = NotInScope Sym
   | NotAFunction Exp Exp
   | NotABool
   | ImproperMacroReturn Value
@@ -383,13 +388,13 @@ data Block = Block [Decl]
   deriving Show
 
 data Decl
-  = Defun Var Exp
-  | Defmacro Var Exp
+  = Defun Sym Exp
+  | Defmacro Sym Exp
   | Stmt Exp
     deriving Show
 
 data Exp
-  = Var Var
+  = Var Sym
   | Value Value
   | App Exp Exp
   | Seq Exp Exp
@@ -402,7 +407,7 @@ data Value
   | Bool Bool
   | Unit
   | Cons Value Value
-  | Fun Env Var Exp
+  | Fun Env Sym Exp
   | BuiltIn (Value -> Z Value)
   | Quote Exp
 
@@ -413,11 +418,14 @@ instance Show Value where
       Integer i        -> show i
       Bool b           -> show b
       Unit             -> "<unit>"
-      Fun _ x e        -> "(fn " ++ x ++ " " ++ show e ++ ")"
+      Fun _ x e        -> "(fn " ++ symToString x ++ " " ++ show e ++ ")"
       BuiltIn _        -> "<built-in>"
       Cons a b         -> "(cons " ++ show a ++ " " ++ show b ++ ")"
       Quote e          -> "(quote " ++ show e ++ ")"
 
-type Var = String
-type Env = Map Var Value
+type Env = Map Sym Value
 type Name = String
+
+data Sym = MacroSym String
+         | ValueSym String
+  deriving (Show,Eq,Ord)
