@@ -5,6 +5,8 @@ defun add x y
 print add 5
           2
 
+print "---------"
+
 defun mult x y acc
       if = x
            0
@@ -23,3 +25,19 @@ if = 0
      0
    print 1
    print 0
+
+print "---------"
+
+fn x y
+   fn p
+      do print p
+         print if = p
+                    42
+                  1
+                  0
+         - * x
+             y
+           p
+   5
+   6
+   42

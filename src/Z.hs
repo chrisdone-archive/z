@@ -132,15 +132,14 @@ macro = do
       case value of
         Quote ex -> return ex
         String out -> do
-          debug $ "Macro outputted:\n" ++ out
           result <- lift (runParse "" (expr <* eof) out)
           case result of
             Left balls -> error $ "Re-parsing macro's output, got: " ++
                                   show balls
-            Right ok -> do debug $ "Re-parsed macro output to:\n" ++ show ok
-                           return ok
+            Right ok -> do return ok
         _ -> lift (throwError (ImproperMacroReturn value))
 
+debug :: String -> Parse ()
 debug = lift . liftIO . putStrLn
 
 applyMacro name input =
