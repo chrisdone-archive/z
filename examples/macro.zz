@@ -9,7 +9,7 @@ defun ap x y
          y
 
 -- A messy macro (because it uses string manipulation),
-   but demonstrates the idea well enough.
+-- but demonstrates the idea well enough.
 defmacro when input
          fn ls
             ap "if "
@@ -30,9 +30,9 @@ when = 1
 print "Hai, guys!"
 
 -- Here we define a macro to make writing strings easier,
-   called “:”, it's meant to read like typical English,
-   and lets you write arbitrary text as long as it's
-   indented to the offside column.
+-- called “:”, it's meant to read like typical English,
+-- and lets you write arbitrary text as long as it's
+-- indented to the offside column.
 defmacro : input
          string input
 
