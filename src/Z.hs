@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- A little language called Z.
@@ -33,9 +34,6 @@ import           Control.Monad.Reader
 import           Data.List
 import           Data.Map (Map)
 import qualified Data.Map as M
-import           Data.Text (Text)
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
 import           Text.Parsec hiding (runP,(<|>))
 import           Text.Parsec.Combinator
 
@@ -59,7 +57,9 @@ parseAndRunBlock str =
 
 parseOnly :: Parse e -> String -> IO (Either RuntimeError (Either ParseError e))
 parseOnly p str =
-  runEval emptyEnv $ runParse "" (p <* eof) str
+  runEval emptyEnv $
+    bindBuiltins $ do
+      runParse "" (p <* eof) str
 
 --------------------------------------------------------------------------------
 -- Parser
@@ -70,9 +70,22 @@ runParse :: SourceName -> Parse a -> String -> Z (Either ParseError a)
 runParse name p s = runParserT p () name s
 
 block :: Parse Block
-block = do
-  xs <- many1 (decl <* newline <* optional newline)
-  return (Block xs)
+block = fmap Block (go []) where
+  go acc = do
+    mdecl <- may (decl <* many newline)
+    case mdecl of
+      Nothing -> return acc
+      Just decl ->
+        case decl of
+          Defun name fun -> do
+            f <- lift (eval fun)
+            bind name f $ go (acc ++ [decl])
+          Defmacro name fun -> do
+            f <- lift (eval fun)
+            bind ("_" ++ name) f (go acc)
+          x -> go (acc ++ [x])
+
+may x = fmap Just (try x) <|> pure Nothing
 
 decl :: Parse Decl
 decl = try defun <|> try defmacro <|> try stmt
@@ -93,15 +106,57 @@ defmacro = offside many1 (string "defmacro") id $ \_ parts ->
     [ps,body] -> do
       params <- flatten ps
       case params of
-        (name:params@(_:_)) -> return (Defun name (makeLambda params body))
+        (name:params@(_:_)) -> return (Defmacro name (makeLambda params body))
         _ -> unexpected "malformed defun name/parameters"
     _ -> unexpected "malformed defun"
 
 expr :: Parse Exp
-expr = try ife <|> try doe <|> try fun <|> try app <|> try lit <|> var
+expr =
+  -- Keywords
+  try ife <|> try doe <|> try fun <|>
+  -- Macro
+  try macro <|>
+  -- Everything else
+  try app <|> try lit <|> var
+
+macro = do
+  Var name' <- lookAhead var
+  let name = "_" ++ name'
+  result <- lift (resolveMaybe name)
+  case result of
+    Nothing -> unexpected "not a macro, don't bother"
+    Just{} -> do
+      _ <- var
+      pos <- getPosition
+      input <- getMacroInput pos
+      value <- lift (eval (applyMacro name input))
+      case value of
+        Quote ex -> return ex
+        String out -> do
+          debug $ "Macro outputted:\n" ++ out
+          result <- lift (runParse "" (expr <* eof) out)
+          case result of
+            Left balls -> error $ "Re-parsing macro's output, got: " ++
+                                  show balls
+            Right ok -> do debug $ "Re-parsed macro output to:\n" ++ show ok
+                           return ok
+        _ -> lift (throwError (ImproperMacroReturn value))
+
+debug = lift . liftIO . putStrLn
+
+applyMacro name input =
+  App (Var name) (Value (String input))
+
+getMacroInput pos = do
+  space
+  currentLine <- manyTill anyChar newline
+  let side = sourceColumn pos
+  rest <- many (try (string (replicate side ' ') *> manyTill anyChar newline))
+  let input = intercalate "\n" (currentLine : rest)
+  return input
 
 lit :: Parse Exp
-lit = fmap Value (integer <|> bool)
+lit = fmap Value (str <|> integer <|> bool)
 
 var :: Parse Exp
 var = fmap Var varname
@@ -110,6 +165,7 @@ varname :: Parse String
 varname = (++) <$> many1 sym <*> many (sym <|> digit)
   where sym = letter <|> oneOf "!@#$%^&*=-`~{}{}:';./,+_"
 
+str = fmap (\x -> String (read ("\"" ++ x ++ "\""))) (char '"' *> manyTill anyChar (char '"'))
 integer = fmap (Integer . read) (many1 digit)
 bool = fmap (Bool . (=="true")) (string "true" <|> string "false")
 
@@ -178,17 +234,11 @@ evalBlock (Block decls) = go decls where
   go (d:ds) =
     case d of
       Defun name fun -> evalDefun name fun (go ds)
-      Defmacro name fun -> evalDefmacro name fun (go ds)
       Stmt e -> do eval e; go ds
 
 evalDefun name fun cont = do
   f <- eval fun
   bind name f cont
-
-evalDefmacro name fun cont = do
-  f <- eval fun
-  return Unit
-  cont
 
 eval :: Exp -> Z Value
 eval ex = do
@@ -226,13 +276,17 @@ apply ope arge = do
     _ -> throwError (NotAFunction ope arge)
 
 resolve :: Var -> Z Value
-resolve key = do
-  env <- ask
-  case M.lookup key env of
-    Just v -> return v
-    _ -> throwError (NotInScope key)
+resolve key =
+  resolveMaybe key
+    >>= maybe (throwError (NotInScope key))
+              return
 
-bind :: Var -> Value -> Z a -> Z a
+resolveMaybe :: Var -> Z (Maybe Value)
+resolveMaybe key = do
+  env <- ask
+  return (M.lookup key env)
+
+bind :: MonadReader Env m => Var -> Value -> m a -> m a
 bind name value m = local (M.insert name value) m
 
 --------------------------------------------------------------------------------
@@ -243,7 +297,10 @@ bindBuiltins m = go builtins where
   go ((name,var):bs) = bind name var (go bs)
   go [] = m
 
-builtins = [("show",show')
+builtins = [("__if",if')
+           ,("__unit",Quote (Value Unit))
+           ,("lines",lines')
+           ,("show",show')
            ,("print",print')
            ,("+",arith (+))
            ,("-",arith (-))
@@ -251,23 +308,44 @@ builtins = [("show",show')
            ,("*",arith (*))
            ,("=",logic (==))
            ,("cons",bi Cons)
-           ,("unit",Unit)]
+           ,("car",car')
+           ,("cdr",cdr')
+           ,("unit",Unit)
+           ,("++",concat')]
 
   where arith = biInt Integer
         logic = biInt Bool
 
+concat' = BuiltIn $ \(String a) ->
+  return $ BuiltIn $ \(String b) ->
+    return (String (a ++ b))
+
+car' = BuiltIn $ \(Cons a b) -> return a
+cdr' = BuiltIn $ \(Cons a b) -> return b
+
+lines' =
+  BuiltIn $ \(String str) ->
+    return (foldr Cons Unit (map String (lines str)))
+
+if' =
+  BuiltIn $ \(Quote cond) -> do
+    return $ BuiltIn $ \(Quote con) -> do
+      return $ BuiltIn $ \(Quote ant) -> do
+        return (Quote (If cond con ant))
+
 show' = BuiltIn $ \v ->
-  return (String (T.pack (show v)))
+  return (String (show v))
 
 print' = BuiltIn $ \value -> unit $ ffi $
   case value of
-    String text -> T.putStrLn text
+    String text -> putStrLn text
     Integer i   -> print i
     Bool b      -> print b
     Unit        -> print ()
     Cons a b    -> print [a,b]
     Fun _ _ _   -> putStrLn "<function>"
     BuiltIn _   -> putStrLn "<built-in>"
+    Quote e     -> print e
 
   where unit m = m >> return Unit
         ffi = liftIO
@@ -297,6 +375,7 @@ data RuntimeError
   = NotInScope Name
   | NotAFunction Exp Exp
   | NotABool
+  | ImproperMacroReturn Value
     deriving Show
 instance Error RuntimeError
 
@@ -318,24 +397,26 @@ data Exp
   deriving Show
 
 data Value
-  = String Text
+  = String String
   | Integer Integer
   | Bool Bool
   | Unit
   | Cons Value Value
   | Fun Env Var Exp
   | BuiltIn (Value -> Z Value)
+  | Quote Exp
 
 instance Show Value where
   show value =
     case value of
-      String text -> show (T.unpack text)
-      Integer i   -> show i
-      Bool b      -> show b
-      Unit        -> "<unit>"
-      Fun _ x e   -> "(fn " ++ x ++ " " ++ show e ++ ")"
-      BuiltIn _   -> "<built-in>"
-      Cons a b    -> "(cons " ++ show a ++ " " ++ show b ++ ")"
+      String text      -> show text
+      Integer i        -> show i
+      Bool b           -> show b
+      Unit             -> "<unit>"
+      Fun _ x e        -> "(fn " ++ x ++ " " ++ show e ++ ")"
+      BuiltIn _        -> "<built-in>"
+      Cons a b         -> "(cons " ++ show a ++ " " ++ show b ++ ")"
+      Quote e          -> "(quote " ++ show e ++ ")"
 
 type Var = String
 type Env = Map Var Value
