@@ -117,7 +117,7 @@ expr =
   -- Macro
   try macro <|>
   -- Everything else
-  try app <|> try lit <|> var
+  try lit <|> try app <|> var
 
 macro = do
   Var name <- lookAhead macroVar
@@ -162,8 +162,18 @@ var = fmap (Var . ValueSym) varname
 macroVar = fmap (Var . MacroSym) varname
 
 varname :: Parse String
-varname = (++) <$> many1 sym <*> many (sym <|> digit)
-  where sym = letter <|> oneOf "!@#$%^&*=-`~{}{}:';./,+_"
+varname = go where
+  go = do
+    c <- fmap Just (lookAhead anyChar) <|> pure Nothing
+    case c of
+      Nothing  -> unexpected "empty varname"
+      Just ' ' -> return ""
+      Just '\n' -> return ""
+      Just c   -> do anyChar
+                     cs <- fmap Just go <|> pure Nothing
+                     case cs of
+                       Nothing -> return [c]
+                       Just cs -> return (c : cs)
 
 str = fmap (\x -> String (read ("\"" ++ x ++ "\""))) (char '"' *> manyTill anyChar (char '"'))
 integer = fmap (Integer . read) (many1 digit)
