@@ -1,7 +1,15 @@
+defmacro -- _
+         "unit"
+
+-- This is the first macro. A comment macro.
+
+-- A simple function used in the next macro.
 defun ap x y
       ++ x
          y
 
+-- A messy macro (because it uses string manipulation),
+   but demonstrates the idea well enough.
 defmacro when input
          fn ls
             ap "if "
@@ -13,6 +21,21 @@ defmacro when input
                               "\n   unit"
             lines input
 
+-- Demo use of the macro. See how it looks native.
 when = 1
        1
      print 123
+
+-- This is the normal way to use strings.
+print "Hai, guys!"
+
+-- Here we define a macro to make writing strings easier,
+   called “:”, it's meant to read like typical English,
+   and lets you write arbitrary text as long as it's
+   indented to the offside column.
+defmacro : input
+         string input
+
+-- Example with print:
+print : Hello, World!
+        What's going on in here?

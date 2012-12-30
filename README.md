@@ -45,3 +45,9 @@ Examples
     when = 1
            1
          print 123
+
+    defmacro : input
+             string input
+
+    print : Hello, World!
+            What's going on in here?

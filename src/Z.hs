@@ -311,8 +311,7 @@ bindBuiltins m = go builtins where
   go ((name,var):bs) = bind (ValueSym name) var (go bs)
   go [] = m
 
-builtins = [("__if",if')
-           ,("__unit",Quote (Value Unit))
+builtins = [("string",string')
            ,("lines",lines')
            ,("show",show')
            ,("print",print')
@@ -329,6 +328,9 @@ builtins = [("__if",if')
 
   where arith = biInt Integer
         logic = biInt Bool
+
+string' = BuiltIn $ \(String a) ->
+  return $ (String (show a))
 
 concat' = BuiltIn $ \(String a) ->
   return $ BuiltIn $ \(String b) ->
