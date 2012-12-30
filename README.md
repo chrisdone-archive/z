@@ -6,22 +6,23 @@ peculiar syntax:
 
 Examples
 
-    fn x y
-       fn p
-          do print p
-             print if = p
-                        42
-                      1
-                      0
-             - * x
-                 y
-               p
-       5
-       6
-       42
+    defun add x y
+          + x
+            y
 
-→
+    print add 5
+              2
 
-    42
-    1
-    Right (Right -12)
+    defun mult x y acc
+          if = x
+               0
+             acc
+             mult - x
+                    1
+                  y
+                  + y
+                    y
+
+    print mult 3
+               6
+               0

@@ -42,16 +42,24 @@ import           Text.Parsec.Combinator
 --------------------------------------------------------------------------------
 -- Main entry points
 
-parseAndRun :: String -> IO (Either RuntimeError (Either ParseError Value))
-parseAndRun str =
+parseAndRunExpr :: String -> IO (Either RuntimeError (Either ParseError Value))
+parseAndRunExpr str =
   runEval emptyEnv $
     bindBuiltins $ do
       source <- runParse "" (spaces *> expr <* spaces <* eof) str
       either (return . Left) (fmap Right . eval) source
 
+parseAndRunBlock :: String -> IO (Either RuntimeError (Either ParseError Value))
+parseAndRunBlock str =
+  runEval emptyEnv $
+    bindBuiltins $ do
+      source <- runParse "" (block <* eof) str
+      either (return . Left) (fmap Right . evalBlock) source
+
+
 parseOnly :: Parse e -> String -> IO (Either RuntimeError (Either ParseError e))
 parseOnly p str =
-  runEval emptyEnv $ runParse "" (p <* optional newline) str
+  runEval emptyEnv $ runParse "" (p <* eof) str
 
 --------------------------------------------------------------------------------
 -- Parser
@@ -61,6 +69,35 @@ type Parse a = ParsecT String () Z a
 runParse :: SourceName -> Parse a -> String -> Z (Either ParseError a)
 runParse name p s = runParserT p () name s
 
+block :: Parse Block
+block = do
+  xs <- many1 (decl <* newline <* optional newline)
+  return (Block xs)
+
+decl :: Parse Decl
+decl = try defun <|> try defmacro <|> try stmt
+
+stmt = fmap Stmt expr
+
+defun = offside many1 (string "defun") id $ \_ parts ->
+  case parts of
+    [ps,body] -> do
+      params <- flatten ps
+      case params of
+        (name:params@(_:_)) -> return (Defun name (makeLambda params body))
+        _ -> unexpected "malformed defun name/parameters"
+    _ -> unexpected "malformed defun"
+
+defmacro = offside many1 (string "defmacro") id $ \_ parts ->
+  case parts of
+    [ps,body] -> do
+      params <- flatten ps
+      case params of
+        (name:params@(_:_)) -> return (Defun name (makeLambda params body))
+        _ -> unexpected "malformed defun name/parameters"
+    _ -> unexpected "malformed defun"
+
+expr :: Parse Exp
 expr = try ife <|> try doe <|> try fun <|> try app <|> try lit <|> var
 
 lit :: Parse Exp
@@ -84,13 +121,16 @@ fun = offside many1 (string "fn") id $ \_ parts ->
   case parts of
     (ps:body:args) -> do
       params <- flatten ps
-      let lambda = foldl (\body name -> Value (Fun emptyEnv name body))
-                         body
-                         (reverse params)
+      let lambda = makeLambda params body
       case args of
         [] -> return lambda
         args -> return (foldl App lambda args)
     _ -> unexpected "malformed fn"
+
+makeLambda params body =
+  foldl (\body name -> Value (Fun emptyEnv name body))
+        body
+        (reverse params)
 
 ife :: Parse Exp
 ife = offside (count 2) (string "if") id $ \_ parts ->
@@ -133,23 +173,43 @@ runEval env z = runReaderT (runErrorT (runZ z)) env
 emptyEnv :: Map Var Value
 emptyEnv = M.empty
 
+evalBlock (Block decls) = go decls where
+  go [] = return Unit
+  go (d:ds) =
+    case d of
+      Defun name fun -> evalDefun name fun (go ds)
+      Defmacro name fun -> evalDefmacro name fun (go ds)
+      Stmt e -> do eval e; go ds
+
+evalDefun name fun cont = do
+  f <- eval fun
+  bind name f cont
+
+evalDefmacro name fun cont = do
+  f <- eval fun
+  return Unit
+  cont
+
 eval :: Exp -> Z Value
-eval (Var var) = do
-  e <- resolve var
-  return e
-eval (Value (Fun _ p b)) = do
-  env <- ask
-  return (Fun env p b)
-eval (Value v) = return v
-eval (App ope arge) = apply ope arge
-eval (Seq a b) = do
-  _ <- eval a
-  eval b
-eval (If c t e) = do
-  cond <- eval c
-  case cond of
-    Bool b -> eval $ if b then t else e
-    _ -> throwError NotABool
+eval ex = do
+  go ex
+  where
+    go (Var var) = do
+      e <- resolve var
+      eval (Value e)
+    go (Value (Fun _ p b)) = do
+      env <- ask
+      return (Fun env p b)
+    go (Value v) = return v
+    go (App ope arge) = apply ope arge
+    go (Seq a b) = do
+      _ <- eval a
+      eval b
+    go (If c t e) = do
+      cond <- eval c
+      case cond of
+        Bool b -> eval $ if b then t else e
+        _ -> throwError NotABool
 
 apply :: Exp -> Exp -> Z Value
 apply ope arge = do
@@ -172,6 +232,9 @@ resolve key = do
     Just v -> return v
     _ -> throwError (NotInScope key)
 
+bind :: Var -> Value -> Z a -> Z a
+bind name value m = local (M.insert name value) m
+
 --------------------------------------------------------------------------------
 -- Built-ins
 
@@ -192,9 +255,6 @@ builtins = [("show",show')
 
   where arith = biInt Integer
         logic = biInt Bool
-
-bind :: Var -> Value -> Z a -> Z a
-bind name value m = local (M.insert name value) m
 
 show' = BuiltIn $ \v ->
   return (String (T.pack (show v)))
@@ -240,9 +300,13 @@ data RuntimeError
     deriving Show
 instance Error RuntimeError
 
+data Block = Block [Decl]
+  deriving Show
+
 data Decl
-  = Def Var Exp
-  | Macro Var Exp
+  = Defun Var Exp
+  | Defmacro Var Exp
+  | Stmt Exp
     deriving Show
 
 data Exp
