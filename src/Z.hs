@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
@@ -54,7 +55,6 @@ parseAndRunBlock str =
       source <- runParse "" (block <* eof) str
       either (return . Left) (fmap Right . evalBlock) source
 
-
 parseOnly :: Parse e -> String -> IO (Either RuntimeError (Either ParseError e))
 parseOnly p str =
   runEval emptyEnv $
@@ -106,7 +106,10 @@ defmacro = offside many1 (string "defmacro") id $ \_ parts ->
     [ps,body] -> do
       params <- flatten ps
       case params of
-        (ValueSym name:params@(_:_)) -> return (Defmacro (MacroSym name) (makeLambda params body))
+        (ValueSym name:params@(_:_)) -> do
+          let macro = (Defmacro (MacroSym name) (makeLambda params body))
+--          debug $ show macro
+          return macro
         _ -> unexpected "malformed defun name/parameters"
     _ -> unexpected "malformed defun"
 
@@ -128,19 +131,35 @@ macro = do
       _ <- var
       pos <- getPosition
       input <- getMacroInput pos
+      posAfter <- getPosition
+      -- debug $ "Position before consuming macro's input: " ++ show pos
+      -- debug $ "Position AFTER consuming macro's input: " ++ show posAfter
+      debug $ "Macro:\n" ++ symToString name ++ indentBefore (length (symToString name)+1) input
       value <- lift (eval (applyMacro name input))
       case value of
         Quote ex -> return ex
-        String out -> do
-          result <- lift (runParse "" (expr <* eof) out)
+        String (addnewline -> out) -> do
+          debug $ "→\n" ++ out ++ "\n—"
+          result <- lift (runParse "" (expr <* many newline <* eof) out)
           case result of
-            Left balls -> error $ "Re-parsing macro's output, got: " ++
+            Left balls -> error $ "Re-parsing macro's output, got: \n" ++
+                                  out ++ "\nbut:\n" ++
                                   show balls
-            Right ok -> do return ok
+            Right ok -> return ok
         _ -> lift (throwError (ImproperMacroReturn value))
 
+  where addnewline = unlines . lines
+
+indent i = intercalate "\n" . map (\l -> replicate i ' ' ++ l) . lines
+indentBefore i s =
+  intercalate "\n" ((" " ++ line) : map indent ls)
+   where indent line = replicate (fromIntegral i) ' ' ++ line
+         ls = drop 1 (lines s)
+         line = concat (take 1 (lines s))
+
 debug :: String -> Parse ()
-debug = lift . liftIO . putStrLn
+debug _ = return ()
+-- debug s = lift . liftIO . putStrLn$s
 
 applyMacro name input =
   App (Var name) (Value (String input))
@@ -228,7 +247,7 @@ offside numbered p getName cont = do
   char ' '
   arg <- expr
   let side = sourceColumn pos + length (getName op)
-  args <- numbered (try (do newline; string (replicate side ' '); expr))
+  args <- numbered (try (do optional newline; string (replicate side ' '); expr))
   cont op (arg:args)
 
 symToString (MacroSym s) = s
@@ -311,7 +330,13 @@ bindBuiltins m = go builtins where
   go ((name,var):bs) = bind (ValueSym name) var (go bs)
   go [] = m
 
-builtins = [("string",string')
+builtins = [
+           -- Built-in macro-writing functions.
+            ("z:string",string')
+           ,("z:blocks",blocks')
+           ,("z:indent",indent')
+           ,("z:indent-before",indentBefore')
+           -- Standard functions.
            ,("lines",lines')
            ,("show",show')
            ,("print",print')
@@ -323,11 +348,32 @@ builtins = [("string",string')
            ,("cons",bi Cons)
            ,("car",car')
            ,("cdr",cdr')
+           ,("unit?",nil')
            ,("unit",Unit)
-           ,("++",concat')]
+           ,("++",concat')
+           ]
 
   where arith = biInt Integer
         logic = biInt Bool
+
+nil' = BuiltIn $ \i ->
+  return $ case i of
+    Unit -> Bool True
+    _ -> Bool False
+
+indent' = BuiltIn $ \(Integer n) ->
+  return $ BuiltIn $ \(String a) ->
+    case lines a of
+      [] -> error "nothing to indent"
+      lines -> return $ String $ intercalate "\n" (map indent lines)
+        where indent line = replicate (fromIntegral n) ' ' ++ line
+
+indentBefore' = BuiltIn $ \(Integer n) ->
+  return $ BuiltIn $ \(String a) ->
+    case lines a of
+      [] -> error "nothing to indent"
+      (line:lines) -> return $ String $ intercalate "\n" ((" " ++ line) : map indent lines)
+        where indent line = replicate (fromIntegral n) ' ' ++ line
 
 string' = BuiltIn $ \(String a) ->
   return $ (String (show a))
@@ -339,9 +385,18 @@ concat' = BuiltIn $ \(String a) ->
 car' = BuiltIn $ \(Cons a b) -> return a
 cdr' = BuiltIn $ \(Cons a b) -> return b
 
+list :: [Value] -> Value
+list = foldr Cons Unit
+
+blocks' = BuiltIn $ \(String s) -> return (list (map String (go (lines s)))) where
+  go [] = []
+  go (line:lines) =
+    case span (isPrefixOf " ") lines of
+      (these,next) -> (intercalate "\n" (line : these)) : go next
+
 lines' =
   BuiltIn $ \(String str) ->
-    return (foldr Cons Unit (map String (lines str)))
+    return (list (map String (lines str)))
 
 if' =
   BuiltIn $ \(Quote cond) -> do

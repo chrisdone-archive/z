@@ -4,7 +4,7 @@ import Z
 
 main = getContents >>= run where
   run string = do
-    result <- parseAndRun string
+    result <- parseAndRunBlock string
     case result of
       Left err -> error (show err)
       Right ranOK ->
