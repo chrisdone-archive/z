@@ -194,7 +194,12 @@ varname = go where
                        Nothing -> return [c]
                        Just cs -> return (c : cs)
 
-str = fmap (\x -> String (read ("\"" ++ x ++ "\""))) (char '"' *> manyTill anyChar (char '"'))
+str = fmap (String . read . quote . concat)
+           (char '"' *> manyTill (try escaped <|> ch) (char '"'))
+   where ch = fmap return anyChar
+         escaped = string "\\\""
+         quote x = "\"" ++ x ++ "\""
+
 integer = fmap (Integer . read) (many1 digit)
 bool = fmap (Bool . (=="true")) (string "true" <|> string "false")
 

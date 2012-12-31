@@ -56,7 +56,7 @@ message ap : Hello,
               : Love ya!
 
 -- Expect you wouldn't write it like that, you'd just write:
-message : Everybody dance now! Alright?
+message : Everybody dance now! "Alright?"
 
 -- Map function.
 defun map f xs
