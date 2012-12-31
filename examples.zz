@@ -78,9 +78,27 @@ defun unlines xs
 defun id x
       x
 
+-- Take the first n elements of list xs.
+defun take n xs
+      if = n
+           0
+         unit
+         if unit? xs
+            unit
+            cons car xs
+                 take - n
+                        1
+                      cdr xs
+
 -- Print the blocks of foo and bar with ! on the end.
 print unlines map fn x
                      ++ x
                         "!"
                   z:blocks : foo
                              bar
+
+print unlines take 3
+                   z:blocks : foo
+                              bar
+                              mu
+                              zot
