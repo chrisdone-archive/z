@@ -22,12 +22,18 @@
      '("defun" "defmacro" "fn" "if" "do")))
   "Z keywords.")
 
+(defconst z-builtin "z:[a-z0-9-]+"
+  "Built-in.")
+
 (defconst z-font-lock-keywords
   (list
    ;; Fontify keywords
    (cons
     (concat "\\<\\(" z-keywords "\\)\\>")
     '(1 font-lock-keyword-face))
+   (cons
+    (concat "\\<\\(" z-builtin "\\)\\>")
+    '(1 font-lock-constant-face))
    '("^-- .*" . font-lock-comment-face))
   "Subdued level highlighting for z mode.")
 
