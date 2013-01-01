@@ -1,0 +1,500 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN">
+<!-- Created by htmlize-1.43 in css mode. -->
+<html>
+  <head>
+    <title>Z</title>
+         <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"></meta>
+    <style type="text/css">
+      <!--
+.wrap {
+      max-width: 40em;
+      margin: auto;
+      font-family: georgia, serif;
+      }
+          body {
+          color: #000000;
+          background-color: #ffffff;
+          }
+          .comment {
+          /* font-lock-comment-face */
+          color: #4F4371;
+          }
+          .constant {
+          /* font-lock-constant-face */
+          color: #008b8b;
+          }
+          .keyword {
+          /* font-lock-keyword-face */
+          color: #a020f0;
+          }
+          .string {
+          /* font-lock-string-face */
+          color: #8b2252;
+          }
+
+          a {
+          color: inherit;
+          background-color: inherit;
+          font: inherit;
+          text-decoration: inherit;
+          }
+          a:hover {
+          text-decoration: underline;
+          }
+          pre { border: 1px solid #ddd; background: #eee; padding:
+          1em }
+          code { border: 1px solid #ddd; background: #eee; padding: 0.1em }
+        -->
+    </style>
+  </head>
+  <body>
+  <div class="wrap">
+    <h1>A tiny language called Z</h1>
+    <p>A tiny, strict, impure, curried, dynamically typed (although
+      that may change), partially
+      applied language with rather peculiar syntax.</p>
+    <h2>Markdown’s insight</h2>
+    <p>
+        First, I want you to recall Markdown. You've seen it even if
+        you haven't ever written any. And you'll know that there's a
+        particular feature in the Markdown syntax, which is how to
+        embed code. It's exceedingly simple; obvious,
+        even: <strong>you indent your code four spaces, and then you
+        can write whatever you want!</strong>
+  </p>
+        <pre>Hello world! Here comes some code!
+
+    Here is some arbitrary code! f.x()/f23(); // Zaha!
+
+And now we're back to normal text...</pre>
+
+<p>
+What I realised was special about this idea, is that you can
+put <em>anything</em> in there. And it doesn't affect, in <em>any
+way</em> the source code surrounding it! Now, that is a very powerful
+idea. Let me show you what I mean.
+</p>
+
+<h2>Z-expressions</h2>
+<p>I'm going to show you a tiny language called “Z” which I have used
+  to illustrate the concept.
+</p>
+<p>Z has very, very simple syntax. Weird, but simple. Here's how it
+works, function application is of the following form:</p>
+<pre>name argument</pre>
+    <p>And that's taken <em>to an extreme</em>, because this code,</p>
+    <pre>foo bar mu zot</pre>
+    <p>actually groups like this:</p>
+    <pre>foo (bar (mu zot))</pre>
+    <p><small>(Note: there are no parentheses in Z. Zero.)</small></p>
+<p>Which, if you think about it, is the natural grouping for the
+  definition of the <code>name argument</code> syntax I gave
+  above.</p>
+  <p>To pass additional arguments to a function, the arguments are put on
+    the next line and indented to the column of the first
+    argument:</p>
+    <pre>foo bar
+    mu
+    zot </pre>
+
+    <p>This means that the function <code>foo</code> has three
+      arguments. This rule applies <strong>everywhere</strong>, so I can, of course,
+    write:</p>
+    <pre>foo bar mu
+        zot
+    bob</pre>
+    <p>This means that the function <code>foo</code> has two
+      arguments, and the function <code>bar</code> has two
+      arguments.</p>
+    <p>I call these “z-expressions”. Lisp is curly, curvy. It has its
+    s-expressions. Z is jagged and sharp. And weird.</p>
+
+    <p>Special operators follow the same rules. Now I'll show you
+    some of those special operators.</p>
+
+    <h2>Z’s built-in operators</h2>
+    <p>The <code>defun</code> special operator takes two arguments: a
+    list of names, the first of which is the name of the function, and
+      a body for the function. Here's a function
+    that <em>appends</em> two lists:</p>
+
+<pre><span class="keyword">defun</span> ap x y
+      ++ x
+         y</pre>
+
+    <p>All Z functions are curried and partially applied, like in
+    Haskell, so the above is equivalent to</p>
+<pre><span class="keyword">fn</span> x y
+   ++ x
+      y</pre>
+    <p>but that doesn't matter for this introduction. We also
+      have <code>if</code> and <code>do</code>:</p>
+
+<pre><span class="keyword">if</span> foo
+   bar
+   mu
+
+<span class="keyword">do</span> this
+   that
+   those</pre>
+
+<p>Note, if you will, that these special operators interpret their
+  arguments in a non-function normal-order way. They interpret their
+  arguments syntactically!</p>
+
+    <p>We also have some number <code>123</code>
+      syntax, <code>"strings"</code> and <code>unit</code>, as in
+      nothing, null, empty, voidness, niente.</p>
+
+<h2>Defining macros</h2>
+
+    <p>Aha! La pièce de résistance! We also have
+    a <code>defmacro</code> operator with the specific task of
+    allowing us to define new syntax. Observe…</p>
+
+<pre>
+<span class="keyword">defmacro</span> -- _
+         <span class="string">"unit"</span>
+</pre>
+
+    <p>Voilà! We have defined the name <code>--</code> which will
+      take an argument <code>_</code> and return the
+      string <code>"unit"</code>. </p>
+
+<p>All macros take in a string, which is all the source code that can
+  be arguments to it, which, as we know, is done by indenting. And all
+  macros output a string that will be put in place of that macro call,
+  and will be <em>re-parsed</em> by the language.</p>
+
+    <p>In the case of our <code>--</code> macro, however, we're just
+      returning <code>unit</code>, a no-op. We've <strong>defined our
+        own comment syntax.</strong></p>
+
+<pre>
+<span class="comment">-- A simple function, that is used inside the macro below.</span>
+<span class="keyword">defun</span> ap x y
+      ++ x
+         y
+</pre>
+
+<p>Tada! There's a function with a comment! That comment syntax, we just
+  made it up! We can also use this
+  function, <code>ap</code> <em>inside</em> other macros, which is
+  typical of the Lisp family of languages. And now let's do that, and
+  define a more complicated macro:</p>
+
+<h2>The <code>when</code> macro</h2>
+
+<pre>
+<span class="comment">-- A messy macro (because it uses string manipulation),</span>
+<span class="comment">   but demonstrates the idea well enough.</span>
+<span class="keyword">defmacro</span> when input
+         <span class="keyword">fn</span> blocks
+            ap <span class="string">"if"</span>
+               ++ <span class="constant">z:indent-before</span> 3
+                                  car blocks
+                  ++ <span class="string">"\n"</span>
+                     ++ <span class="constant">z:indent</span> 3
+                                 car cdr blocks
+                        ++ <span class="string">"\n"</span>
+                           <span class="constant">z:indent</span> 3
+                                    <span class="string">"unit"</span>
+            <span class="constant">z:blocks</span> input
+</pre>
+
+<p>Here we can see that I have provided some helper functions for
+  getting the set of “blocks”—i.e. arguments in an application—and I'm
+  passing that to the anonymous function starting at <code>fn
+    blocks</code>, then I am constructing a string which is
+  returned.</p>
+
+    <p>Can you tell the aim of this macro? It's to let write this:</p>
+
+<pre>when = 1
+       1
+     print ++ <span class="string">"The number is: "</span>
+              when true
+                   show 123
+</pre>
+
+    <p>See how it looks native? Macros within macros are fine!</p>
+
+    <h2>The string macro</h2>
+
+    <p>A common problem in programming is how to write strings of
+    text in a non-annoying way. Often we put up with our strange ways
+    of escaping strings. In Z, you don't have to!</p>
+
+    <p>This is the normal way to use strings:</p>
+    <pre> print <span class="string">"Hai, guys!"</span></pre>
+    <p>Here we define a macro to make writing strings easier,
+      called <code>:</code>, it's meant to read like typical English,
+ and lets you write arbitrary text as long as it's
+ indented to the offside column.</p>
+
+<pre><span class="keyword">defmacro</span> : input
+         <span class="constant">z:string</span> input</pre>
+
+<p>Here I provided a utility to make a <code>string</code>
+into <code>"string"</code>, so that whatever is passed
+as <code>input</code> into the macro will be returned verbatim, but in
+  string syntax. Ready? LOOK NOW!</p>
+
+<pre><span class="comment">-- Example with print:</span>
+print : Hello, World!
+        What's going on in here? </pre>
+
+Isn't that just wonderful? It reads like a script! And <em>that</em>,
+is exactly the insight that Markdown had. Again, it works just fine
+with other function application:
+
+<pre>
+<span class="keyword">defun</span> message msg
+      <span class="keyword">do</span> print : Here's a message
+         print msg
+         print : End of message. </pre>
+
+    <p>And you can use it:</p>
+
+<pre>message ap : Hello,
+           ++ <span class="string">" World! "</span>
+              : Love ya! </pre>
+
+
+
+   <p>Expect you wouldn't write it like that, you'd just write:</p>
+<pre>message : Everybody dance now! <span class="string">"Alright?"</span> </pre>
+
+<h2>Defining some functions</h2>
+
+<p>Enough awesome for now. Let's take a breather from all that
+  excitement and look at some boring pure functions. This is what
+  code in Z looks like.</p>
+
+<pre><span class="comment">-- Map function.</span>
+<span class="keyword">defun</span> map f xs
+      <span class="keyword">if</span> unit? xs
+         unit
+         cons f car xs
+              map f
+                  cdr xs
+
+<span class="comment">-- ["foo","bar"] &#8594; foo\nbar\n </span>
+<span class="keyword">defun</span> unlines xs
+      <span class="keyword">if</span> unit? xs
+         <span class="string">""</span>
+         ++ car xs
+            ++ <span class="string">"\n"</span>
+               unlines cdr xs
+
+<span class="comment">-- Take the first n elements of list xs.</span>
+<span class="keyword">defun</span> take n xs
+      <span class="keyword">if</span> = n
+           0
+         unit
+         <span class="keyword">if</span> unit? xs
+            unit
+            cons car xs
+                 take - n
+                        1
+                      cdr xs
+
+<span class="comment">-- Take all but the last element of a list.</span>
+<span class="keyword">defun</span> init xs
+      <span class="keyword">if</span> unit? xs
+         unit
+         <span class="keyword">if</span> unit? cdr xs
+            unit
+            cons car xs
+                 init cdr xs
+
+<span class="comment">-- Take the last element of a list, or return a default.</span>
+<span class="keyword">defun</span> last def xs
+      <span class="keyword">if</span> unit? xs
+         def
+         <span class="keyword">if</span> unit? cdr xs
+            car xs
+            last def
+                 cdr xs
+</pre>
+
+    <p>Isn't programming without pattern matching completely boring!?
+    Sadly, we won't be defining a pattern matching syntax in Z today,
+    because writing a decent pattern macher is non-trivial. And
+    writing a crappy one is embarassing.</p>
+    <p>So we can use those functions, and all works as expected:</p>
+    <pre>
+<span class="comment">-- Print the blocks of foo and bar with ! on the end.</span>
+print unlines map <span class="keyword">fn</span> x
+                     ++ x
+                        <span class="string">"!"</span>
+                  <span class="constant">z:blocks</span> : foo
+                             bar
+
+<span class="comment">-- Use of take function.</span>
+print unlines take 3
+                   <span class="constant">z:blocks</span> : foo
+                              bar
+                              mu
+                              zot
+</pre>
+
+    <h2>Regular expressions</h2>
+
+    <p>Here's another, easy use-case for macros: regular
+    expressions! Let's experiment a little.</p>
+
+    <p>Our basic regex functions from the standard library
+      are <code>regex:match</code>
+      and <code>regex:new</code>. And <code>regex:match</code> returns
+      a list of matches as marked by the <code>(foo)</code> syntax of
+      regular expressions.</p>
+<pre>print regex:match regex:new <span class="string">"(abc)"</span>
+                  <span class="string">"abc"</span>
+</pre>
+
+    <p>We're already macro <em>coin</em>nnoisseurs (<em>get it?</em>)
+    by this point, so let's dabble with some nicer syntax:</p>
+
+<pre><span class="keyword">defun</span> ~~ regex string
+      regex:match regex
+                  string
+
+print ~~ regex:new <span class="string">"(def)"</span>
+         <span class="string">"defghi"</span>
+</pre>
+    <p>What do we think? Not bad? It's shorter to write the match, at
+    least. But building the macro is still cumbersome. Let's make a
+    macro for that!</p>
+
+<pre><span class="keyword">defmacro</span> rx input
+         ++ <span class="string">"regex:new "</span>
+            <span class="constant">z:string</span> input
+
+print ~~ rx <span class="string">Age: (.*)</span>
+         <span class="string">"Age: 123"</span>
+</pre>
+    <p>Bit nicer, but not <em>amazing</em>.</p>
+    <p>Let's maybe skip the whole composing part and merge in the
+    matching together:</p>
+<pre>
+<span class="keyword">defmacro</span> ~ input
+         <span class="keyword">fn</span> blocks
+            ++ <span class="string">"~~ rx"</span>
+               ++ <span class="constant">z:indent-before</span> 6
+                                  unlines init blocks
+                  ++ <span class="string">"\n"</span>
+                     <span class="constant">z:indent</span> 3
+                              last <span class="string">""</span>
+                                   blocks
+            <span class="constant">z:blocks</span> input
+
+print ~ <span class="string">Age: (.*)</span>
+        <span class="string">"Age: 666"</span>
+</pre>
+
+    <p><em>Now</em> we're cooking with gas! That looks like a million
+      dollars, pre-recession!</p>
+
+<pre>print ~ <span class="string">Age: (.*)
+        ([a-z]+)</span>
+        <span class="string">"Age: 777\nlalala"</span>
+</pre>
+    <p>Oh, fancy that, we can even write multi-line regexes. God
+    damn, that's some delicious awesome sauce. Can I get another
+    bottle, waiter?</p>
+
+<pre>print ~ <span class="string">Age: (.*)
+        ([a-z]+)</span>
+        : <span class="string">Age: 999
+          beep!</span>
+</pre>
+
+    <p>Ah, of course. It even works with other macros. How's that for
+    a slice of fried gold?</p>
+
+    <h2>Editing</h2>
+
+<p>Another aspect of Z-expressions which is totally suave is that
+  editing it can largely be made trivial. Question: how do you
+  capture the starting and ending positions of the current node in
+  Lisp or any other language?</p>
+
+<pre>(lorem ipsum-lorem-ipsum ()
+  (foo-bar)
+  (let* ((zot (biff-pop))
+         (zar-zar (beep "%s.bill" bob)))
+    (if (ben-bill-bocky doo-dar)
+        (let*<strong>|</strong> ((foo (foo-bar-mu-zot))
+               (bar (ipsum-lorem))
+               (ipsum (cdr (assoc 'cakes lorem)))
+               (lorem (cdr (assoc 'potato lorem)))
+               (ipsum (cdr (assoc 'ipsum lorem)))
+               (lorem (cdr (assoc 'lorem lorem))))
+          (if bob
+              (progn
+                (bill ben)
+                (the cake is a lie)
+                (the game))
+            (message "Structural integrity is not secured.")))
+      (message "Data, because it's polite." cakes))))</pre>
+
+
+      <p>If you're just after the let, what do you do? The usual
+        thing. You start looking for a start parenthesis. You find
+        it. Then you start walking forward, looking for a closing
+        parenthesis. Every time you encounter an opening parenthesis, you
+        push it onto a stack. Every time you encounter a closing one, you
+        pop it off the stack. Unless you encounter an opening string, or
+        character escape, in which case you wait until you encounter
+        another, non-escaped string, and continue… Sorry, was I
+        boring you? Yeah, me too. I thought I could make it, but I
+        can't.</p>
+
+
+<p>However, in Z. It's easy. You go to the starting column, identified
+  by the first non-whitespace character. Then you go up and down a line
+  and do the same thing until the starting column is not equal to or
+  greater than this one. Done. You have the whole z-expression. You
+  want to move it? Easy, you cut it out and paste it, and add or
+  remove spaces according to the new offset. Worried about
+  indentation styles? There are non in Z. It's impossible to have
+  indentation styles. There is only one indentation.</p>
+
+
+    <h2>Future Work</h2>
+    <h3>Quasiquotations</h3>
+
+<p>We would be nothing if we did not learn from history. And Lisp has
+  a lot of history, and it has taught us about quotation and
+  quasiquotation, and how convenient it can be over strings. And I
+  agree. That's why, next, I will implement this syntax:</p>
+
+<pre><span class="keyword">defmacro</span> when cond body
+         <span class="keyword"><strong>`</strong></span> if <span class="keyword">,</span> cond
+              <span class="keyword">,</span> body
+              unit
+</pre>
+
+<p>Of course, it follows the same syntactical pattern as all
+  Z-expressions, but the same semantics as in Lisp. However, this is
+  merely syntactic sugar. The real power in Z lies in its reliance on
+  indentation to denote regions of text.</p>
+
+<h3>A “math” macro</h3>
+
+<p>In Z, you indent for many-argument functions. That can be boring for
+functions involved in maths, for which the arguments are often simple,
+other expressions of the same order. For that, a math macro is
+  entirely appropriate. For example, <code>#</code>:</p>
+
+<pre><span class="keyword">def</span> x # x²-y²×(2xy+x²-y²×(2xy+c))
+</pre>
+
+    <p>Why not?</p>
+
+<hr>
+    <p>&copy; 2013-01-01 Chris Done &lt;chrisdone@gmail.com&gt;</p>
+  </div>
+  </body>
+</html>
