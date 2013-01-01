@@ -288,8 +288,8 @@ apply ope arge = do
       arg <- eval arge
       f arg
     Fun env param body -> do
+      arg <- eval arge
       local (const env) $ do
-        arg <- eval arge
         local (M.insert param arg)
               (eval body)
     _ -> throwError (NotAFunction ope arge)
