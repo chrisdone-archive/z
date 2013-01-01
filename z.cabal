@@ -19,4 +19,5 @@ executable z
                      text,
                      parsec,
                      containers,
-                     mtl
+                     mtl,
+                     regex-compat

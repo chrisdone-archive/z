@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -9,11 +11,13 @@ module Z where
 import           Control.Applicative hiding (many,optional)
 import           Control.Monad.Error
 import           Control.Monad.Reader
+import           Data.Dynamic
 import           Data.List
 import           Data.Map (Map)
 import qualified Data.Map as M
 import           Text.Parsec hiding (runP,(<|>))
 import           Text.Parsec.Combinator
+import           Text.Regex
 
 --------------------------------------------------------------------------------
 -- Main entry points
@@ -333,10 +337,25 @@ builtins = [
            ,("unit?",nil')
            ,("unit",Unit)
            ,("++",concat')
+           -- Regex functions.
+           ,("regex:new",regex_new)
+           ,("regex:match",regex_match)
            ]
 
   where arith = biInt Integer
         logic = biInt Bool
+
+deriving instance Typeable Regex
+regex_new = BuiltIn $ \(String s) ->
+  return $ Foreign $ toDyn $ mkRegex s
+regex_match = BuiltIn $ \(Foreign regex) ->
+  return $ BuiltIn $ \(String s) ->
+    case fromDynamic regex of
+      Nothing -> error "not a regex!"
+      Just regex ->
+        return $ maybe Unit
+                       (list . map String)
+                       (matchRegex regex s)
 
 nil' = BuiltIn $ \i ->
   return $ case i of
@@ -458,6 +477,7 @@ data Value
   | Fun Env Sym Exp
   | BuiltIn (Value -> Z Value)
   | Quote Exp
+  | Foreign Dynamic
 
 instance Show Value where
   show value =
