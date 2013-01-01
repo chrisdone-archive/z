@@ -33,10 +33,6 @@
           }
 
           a {
-          color: inherit;
-          background-color: inherit;
-          font: inherit;
-          text-decoration: inherit;
           }
           a:hover {
           text-decoration: underline;
@@ -124,9 +120,12 @@ works, function application is of the following form:</p>
 
     <p>All Z functions are curried and partially applied, like in
     Haskell, so the above is equivalent to</p>
-<pre><span class="keyword">fn</span> x y
-   ++ x
-      y</pre>
+<pre><span class="keyword">def</span> ap
+    <span class="keyword">fn</span> x
+       <span class="keyword">fn</span> y
+          ++ x
+             y</pre>
+
     <p>but that doesn't matter for this introduction. We also
       have <code>if</code> and <code>do</code>:</p>
 
@@ -208,7 +207,7 @@ works, function application is of the following form:</p>
     blocks</code>, then I am constructing a string which is
   returned.</p>
 
-    <p>Can you tell the aim of this macro? It's to let write this:</p>
+    <p>Can you tell the aim of this macro? It's to let us write this:</p>
 
 <pre>when = 1
        1
@@ -262,8 +261,8 @@ with other function application:
 
 
 
-   <p>Expect you wouldn't write it like that, you'd just write:</p>
-<pre>message : Everybody dance now! <span class="string">"Alright?"</span> </pre>
+   <p>Except you wouldn't write it like that, you'd just write:</p>
+<pre>message <span class="string">: Everybody dance now!</span></pre>
 
 <h2>Defining some functions</h2>
 
@@ -364,7 +363,7 @@ print ~~ regex:new <span class="string">"(def)"</span>
          <span class="string">"defghi"</span>
 </pre>
     <p>What do we think? Not bad? It's shorter to write the match, at
-    least. But building the macro is still cumbersome. Let's make a
+    least. But building the regex is still cumbersome. Let's make a
     macro for that!</p>
 
 <pre><span class="keyword">defmacro</span> rx input
@@ -493,8 +492,25 @@ other expressions of the same order. For that, a math macro is
 
     <p>Why not?</p>
 
+    <h2>Implementation</h2>
+    <p>There's an
+    implementation <a href="https://github.com/chrisdone/z">here</a>,
+    but I wouldn't try it, it's too <strike>buggy</strike> awesome for
+    you, I'd just look at it, and try to imagine the bodacious vibes
+      kicking off it. Alright?</p>
+
 <hr>
     <p>&copy; 2013-01-01 Chris Done &lt;chrisdone@gmail.com&gt;</p>
   </div>
+    <script type="text/javascript">
+      var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+      document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+    </script>
+    <script type="text/javascript">
+      try {
+      var pageTracker = _gat._getTracker("UA-7443395-1");
+      pageTracker._trackPageview();
+      } catch(err) {}</script>
+    </body>
   </body>
 </html>
