@@ -58,9 +58,9 @@ block = fmap Block (go []) where
       Nothing -> return acc
       Just decl ->
         case decl of
-          Defun name fun -> do
-            f <- lift (eval fun)
-            bind name f $ go (acc ++ [decl])
+          Def name value -> do
+            value <- lift (eval value)
+            bind name value $ go (acc ++ [decl])
           Defmacro name fun -> do
             f <- lift (eval fun)
             bind name f (go acc)
@@ -69,7 +69,7 @@ block = fmap Block (go []) where
 may x = fmap Just (try x) <|> pure Nothing
 
 decl :: Parse Decl
-decl = try defun <|> try defmacro <|> try stmt
+decl = try defun <|> try def <|> try defmacro <|> try stmt
 
 stmt = fmap Stmt expr
 
@@ -78,9 +78,14 @@ defun = offside many1 (string "defun") id $ \_ parts ->
     [ps,body] -> do
       params <- flatten ps
       case params of
-        (name:params@(_:_)) -> return (Defun name (makeLambda params body))
+        (name:params@(_:_)) -> return (Def name (makeLambda params body))
         _ -> unexpected "malformed defun name/parameters"
     _ -> unexpected "malformed defun"
+
+def = offside many1 (string "def") id $ \_ parts ->
+  case parts of
+    [Var name,body] -> return (Def name body)
+    _ -> unexpected "malformed def"
 
 defmacro = offside many1 (string "defmacro") id $ \_ parts ->
   case parts of
@@ -252,12 +257,12 @@ evalBlock (Block decls) = go decls where
   go [] = return Unit
   go (d:ds) =
     case d of
-      Defun name fun -> evalDefun name fun (go ds)
+      Def name exp -> evalDef name exp (go ds)
       Stmt e -> do eval e; go ds
 
-evalDefun name fun cont = do
-  f <- eval fun
-  bind name f cont
+evalDef name exp cont = do
+  e <- eval exp
+  bind name e cont
 
 eval :: Exp -> Z Value
 eval ex = do
@@ -455,7 +460,7 @@ data Block = Block [Decl]
   deriving Show
 
 data Decl
-  = Defun Sym Exp
+  = Def Sym Exp
   | Defmacro Sym Exp
   | Stmt Exp
     deriving Show

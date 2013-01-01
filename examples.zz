@@ -4,9 +4,10 @@ defmacro -- _
 -- This is the first macro. A comment macro.
 
 -- A simple function used in the next macro.
-defun ap x y
-      ++ x
-         y
+def ap
+    fn x y
+       ++ x
+          y
 
 -- A messy macro (because it uses string manipulation),
 -- but demonstrates the idea well enough.
